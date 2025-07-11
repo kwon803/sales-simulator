@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>매출 시뮬레이터</title>
+  <style>
+    :root{
+      --primary:#5a7dff;--primary-hover:#405be8;--danger:#ff6b6b;--success:#3ac569;
+      --bg:#f4f6fa;--card:#ffffff;--text:#333;--radius:10px;--shadow:0 6px 18px rgba(0,0,0,.07);
+    }
+    [data-theme="dark"]{
+      --bg:#20232a;--card:#2d313c;--text:#f1f1f1;--primary:#8293ff;--primary-hover:#5b6bff;--shadow:0 6px 18px rgba(0,0,0,.4);
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);padding:20px;transition:background .3s,color .3s}
+    h1,h2{margin-bottom:18px;color:var(--primary)}
+    .container{display:grid;grid-template-columns:1fr 1.7fr;gap:24px;max-width:1400px;margin:auto}
+    .card{background:var(--card);padding:24px;border-radius:var(--radius);box-shadow:var(--shadow);transition:background .3s}
+    label{display:block;margin-bottom:6px;font-weight:600;font-size:.95em}
+    .form-group{margin-bottom:18px}
+    input,select{width:100%;padding:12px;border:1px solid #ccc;border-radius:var(--radius);font-size:.94em;background:inherit;color:inherit}
+    input::placeholder{color:#999}
+    .btn{padding:10px 16px;border:none;border-radius:var(--radius);font-weight:600;font-size:.85em;cursor:pointer;color:#fff;transition:opacity .2s}
+    .btn:hover{opacity:.9}
+    .btn-primary{background:var(--primary)}.btn-danger{background:var(--danger)}.btn-success{background:var(--success)}
+    .btn-group{display:flex;gap:12px;margin-top:10px}
+    .results table{width:100%;border-collapse:collapse;font-size:.9em}
+    .results td{padding:8px;border-bottom:1px solid #eaeaea}
+    .results .label{font-weight:600}
+    /* history */
+    .history-head{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+    .history-head select,.history-head input{padding:10px 12px;border:1px solid #ccc;border-radius:var(--radius);font-size:.8em;background:inherit;color:inherit}
+    .history-head select{min-width:120px}
+    .history-table{width:100%;border-collapse:collapse;font-size:.8em;margin-top:12px;min-width:900px}
+    .history-table th,.history-table td{padding:10px 8px;border-bottom:1px solid #eaeaea;text-align:center}
+    .history-table th{background:#f0f2f5;position:sticky;top:0;z-index:1;font-weight:700;color:#666}
+    [data-theme="dark"] .history-table th{background:#3a3f47;color:#ddd}
+    .history-table tr:hover{background:#f8faff}
+    [data-theme="dark"] .history-table tr:hover{background:#31343c}
+    .history-table .btn{padding:4px 8px;font-size:.7em;width:auto}
+    #toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 22px;border-radius:var(--radius);display:none;font-size:.9em;z-index:9999}
+    /* responsive */
+    @media(max-width:900px){.container{grid-template-columns:1fr}.history-table{min-width:600px}}
+    @media(max-width:600px){input,select{padding:10px}.btn{padding:10px 14px}.history-table th,.history-table td{padding:6px;font-size:.72em}}
+  </style>
+</head>
+<body>
+  <div id="toast"></div>
+  <div class="container">
+    <!-- ▶ 시뮬레이터 -->
+    <section class="card">
+      <h1>매출 시뮬레이터</h1>
+      <div class="form-group">
+        <label for="modeSelect">시뮬레이션 종류</label>
+        <select id="modeSelect"><option value="regular" selected>상시 매출</option><option value="promo">기획전/이벤트</option></select>
+      </div>
+      <!-- 상시 폼 -->
+      <form id="regularForm" autocomplete="off">
+        <div class="form-group"><label for="productName">상품명</label><input id="productName" type="text" placeholder="예: 에코 샤워호스"></div>
+        <div class="form-group"><label for="listPrice">정가 (₩)</label><input id="listPrice" type="number" min="0" step="100"></div>
+        <div class="form-group"><label for="salePrice">판매가 (₩)</label><input id="salePrice" type="number" min="0" step="100"></div>
+        <div class="form-group"><label for="unitCost">상품 원가 (₩)</label><input id="unitCost" type="number" min="0" step="100"></div>
+        <div class="form-group"><label for="shippingCostMode">배송비 부담</label><select id="shippingCostMode"><option value="default" selected>고객 부담</option><option value="free">무료 배송 (₩3,180)</option><option value="custom">직접 입력</option></select></div>
+        <div class="form-group" id="customShippingGroup" style="display:none"><label for="shippingCostCustom">배송비 (₩)</label><input id="shippingCostCustom" type="number" min="0" step="100"></div>
+        <div class="form-group"><label for="cardFeeRate">카드 수수료</label><select id="cardFeeRate"><option value="0" selected>0%</option><option value="0.025">2.5%</option><option value="0.035">3.5%</option><option value="0.04">4.0%</option><option value="custom">직접 입력</option></select></div>
+        <div class="form-group" id="cardFeeCustomGroup" style="display:none"><label for="cardFeeCustom">카드 수수료 (%)</label><input id="cardFeeCustom" type="number" min="0" max="100" step="0.1"></div>
+        <div class="form-group"><label for="platformFeeRate">플랫폼 수수료</label><select id="platformFeeRate"><option value="0" selected>0%</option><option value="0.015">1.5%</option><option value="0.022">2.2%</option><option value="0.03">3.0%</option><option value="custom">직접 입력</option></select></div>
+        <div class="form-group" id="platformFeeCustomGroup" style="display:none"><label for="platformFeeCustom">플랫폼 수수료 (%)</label><input id="platformFeeCustom" type="number" min="0" max="100" step="0.1"></div>
+        <div class="btn-group"><button type="button" class="btn btn-primary" onclick="simulateRegular()">계산</button><button type="button" class="btn btn-danger" onclick="resetRegular()">초기화</button></div>
+      </form>
+      <!-- 이벤트 폼 -->
+      <form id="promoForm" style="display:none" autocomplete="off">
+        <div class="form-group"><label for="promoProductName">상품명</label><input id="promoProductName" type="text"></div>
+        <div class="form-group"><label for="promoListPrice">정상가 (₩)</label><input id="promoListPrice" type="number" min="0" step="100"></div>
+        <div class="form-group"><label for="promoOfferPrice">제안가 (₩)</label><input id="promoOfferPrice" type="number" min="0" step="100"></div>
+        <div class="form-group"><label for="promoCouponAmount">쿠폰 할인액 (₩)</label><input id="promoCouponAmount" type="number" min="0" step="100"></div>
+        <div class="form-group"><label for="promoProductCost">제품 원가 (₩)</label><input id="promoProductCost" type="number" min="0" step="100"></div>
+        <div class="form-group"><label for="promoFeeRate">수수료 (%)</label><input id="promoFeeRate" type="number" min="0" max="100" step="0.1"></div>
+        <div class="form-group"><label for="shippingCostModePromo">배송비 부담</label><select id="shippingCostModePromo"><option value="default" selected>고객 부담</option><option value="free">무료 배송 (₩3,180)</option><option value="custom">직접 입력</option></select></div>
+        <div class="form-group" id="customShippingPromo" style="display:none"><label for="shippingCostCustomPromo">배송비 (₩)</label><input id="shippingCostCustomPromo" type="number" min="0" step="100"></div>
+        <div class="btn-group"><button type="button" class="btn btn-primary" onclick="simulatePromo()">계산</button><button type="button" class="btn btn-danger" onclick="resetPromo()">초기화</button></div>
+      </form>
+      <!-- 결과 -->
+      <div id="results" class="results" style="display:none"></div>
+    </section>
+
+    <!-- ▶ 기록 -->
+    <section class="card">
+      <div class="history-head">
+        <h2>시뮬레이션 기록</h2>
+        <select id="filterType" onchange="filterHistory()"><option value="">전체 타입</option><option value="상시">상시</option><option value="이벤트">이벤트</option></select>
+        <input id="filterName" type="text" placeholder="상품명 필터…" oninput="filterHistory()">
+      </div>
+      <div class="btn-group" style="margin-top:14px"><button id="clearAll" class="btn btn-danger">전체 삭제</button><button id="copyAll" class="btn btn-primary">복사</button></div>
+      <div style="overflow-x:auto;margin-top:12px">
+        <table id="historyTable" class="history-table">
+          <thead><tr><th>타입</th><th>상품명</th><th>정가</th><th>판매/제안</th><th>쿠폰</th><th>원가</th><th>수수료%</th><th>배송비</th><th>순이익</th><th>이익률</th><th>액션</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+<script>
+const $=id=>document.getElementById(id);
+const toast=$("toast");const fmt=n=>Number(n).toLocaleString(); const showToast=m=>{toast.textContent=m;toast.style.display='block';setTimeout(()=>toast.style.display='none',2000)};
+// auto theme by hour
+const applyTheme=()=>{const h=new Date().getHours();document.documentElement.dataset.theme=(h>=6&&h<18)?'':'dark'};applyTheme();setInterval(applyTheme,30*60*1000);
+// toggle forms
+$("modeSelect").onchange=e=>{const p=e.target.value==='promo';$("regularForm").style.display=p?'none':'block';$("promoForm").style.display=p?'block':'none';$("results").style.display='none'};
+['shippingCostMode','cardFeeRate','platformFeeRate'].forEach((id,i)=>{const grp=['customShippingGroup','cardFeeCustomGroup','platformFeeCustomGroup'][i];$(id).onchange=e=>$(grp).style.display=e.target.value==='custom'?'block':'none'});
+$('shippingCostModePromo').onchange=e=>$('customShippingPromo').style.display=e.target.value==='custom'?'block':'none';
+// reset helpers
+const clearInputs=ids=>ids.forEach(id=>{$(id)&&($(id).value='')});window.resetRegular=()=>{clearInputs(['productName','listPrice','salePrice','unitCost','shippingCostCustom','cardFeeCustom','platformFeeCustom']);['shippingCostMode','cardFeeRate','platformFeeRate'].forEach(id=>$(id).value='0');['customShippingGroup','cardFeeCustomGroup','platformFeeCustomGroup'].forEach(g=>$(g).style.display='none')};window.resetPromo=()=>{clearInputs(['promoProductName','promoListPrice','promoOfferPrice','promoCouponAmount','promoProductCost','promoFeeRate','shippingCostCustomPromo']);$('shippingCostModePromo').value='default';$('customShippingPromo').style.display='none'};
+// helpers
+const getRate=(sel,custom)=>$(sel).value==='custom'?((+$(custom).value||0)/100):+( $(sel).value||0);
+const tbody=$('historyTable').querySelector('tbody');const addRow=d=>{const tr=document.createElement('tr');d.forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.appendChild(td)});const td=document.createElement('td');td.innerHTML='<button class="btn btn-success" onclick="copyRow(this)">복사</button> <button class="btn btn-danger" onclick="this.parentElement.parentElement.remove()">삭제</button>';tr.appendChild(td);tr.dataset.arr=d.join('\t');tbody.appendChild(tr);filterHistory()};window.copyRow=b=>{navigator.clipboard.writeText(b.parentElement.parentElement.dataset.arr);showToast('복사되었습니다')};
+const simulateRegular=()=>{const n=$('productName').value.trim();const l=+$('listPrice').value||0;const s=+$('salePrice').value||0;const c=+$('unitCost').value||0;const ship=($('shippingCostMode').value==='free'?3180:$('shippingCostMode').value==='custom'?+$('shippingCostCustom').value||0:0);const cardR=getRate('cardFeeRate','cardFeeCustom');const platR=getRate('platformFeeRate','platformFeeCustom');const profit=s-((c+ship+s*cardR+s*platR)*1.1);const pRate=s?profit/s*100:0;$('results').innerHTML=`<table><tbody><tr><td class="label">순이익</td><td>₩${fmt(profit)}</td></tr><tr><td class="label">이익률</td><td>${pRate.toFixed(2)}%</td></tr></tbody></table>`;$('results').style.display='block';addRow(['상시',n,fmt(l),fmt(s),'',fmt(c),((cardR+platR)*100).toFixed(2)+'%',fmt(ship),fmt(profit),pRate.toFixed(2)+'%'])};
+const simulatePromo=()=>{const n=$('promoProductName').value.trim();const l=+$('promoListPrice').value||0;const off=+$('promoOfferPrice').value||0;const cp=+$('promoCouponAmount').value||0;const pc=+$('promoProductCost').value||0;const feeR=(+$('promoFeeRate').value||0)/100;const ship=($('shippingCostModePromo').value==='free'?3180:$('shippingCostModePromo').value==='custom'?+$('shippingCostCustomPromo').value||0:0);const final=off-cp;const profit=final-((pc+final*feeR+ship)*1.1);const pRate=final?profit/final*100:0;$('results').innerHTML=`<table><tbody><tr><td class="label">순이익</td><td>₩${fmt(profit)}</td></tr><tr><td class="label">이익률</td><td>${pRate.toFixed(2)}%</td></tr></tbody></table>`;$('results').style.display='block';addRow(['이벤트',n,fmt(l),fmt(off),fmt(cp),fmt(pc),(feeR*100).toFixed(2)+'%',fmt(ship),fmt(profit),pRate.toFixed(2)+'%'])};
+// filter
+const filterHistory=()=>{const t=$('filterType').value;const kw=$('filterName').value.toLowerCase();[...tbody.rows].forEach(r=>{const okType=t? r.cells[0].textContent===t:!0;const okName=kw? r.cells[1].textContent.toLowerCase().includes(kw):!0;r.style.display=okType&&okName?'':'none'})};
+// control buttons
+$('clearAll').onclick=()=>{tbody.innerHTML='';showToast('기록 초기화')};$('copyAll').onclick=()=>{const header=[...$('historyTable').querySelectorAll('thead th')].slice(0,-1).map(h=>h.textContent).join('\t');const rows=[...tbody.rows].map(r=>r.dataset.arr);navigator.clipboard.writeText([header,...rows].join('\n'));showToast('복사되었습니다')};
+</script>
+</body>
+</html>
